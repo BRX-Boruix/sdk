@@ -114,6 +114,26 @@ int main(void) {
     check(raise(SIGUSR2) == 0, "raise(SIGUSR2)");
     check(sig_seen == SIGUSR2, "sigaction handler saw SIGUSR2");
 
+    /* sscanf：从字符串扫描（与 fscanf 共用同一核心 vscan） */
+    int sv = 0;
+    char sw[16];
+    double sd = 0.0;
+    memset(sw, 0, sizeof sw);
+    check(sscanf("42 hello 3.5", "%d %15s %lf", &sv, sw, &sd) == 3, "sscanf assigns 3 items");
+    check(sv == 42 && strcmp(sw, "hello") == 0 && sd == 3.5, "sscanf values");
+    check(sscanf("nope", "%d", &sv) == 0, "sscanf no-match returns 0");
+
+    /* sigprocmask：**行为**验证（不只是符号存在）——屏蔽期间不投递，解除后才投递。
+     * 位图约定按 bit(sig-1)（sigset_t 为 u64，bit63 保留）。 */
+    sigset_t blk = 1UL << (SIGUSR2 - 1);
+    sigset_t saved;
+    check(sigprocmask(SIG_BLOCK, &blk, &saved) == 0, "sigprocmask SIG_BLOCK");
+    sig_seen = 0;
+    check(raise(SIGUSR2) == 0, "raise(SIGUSR2) while blocked");
+    check(sig_seen == 0, "handler must NOT run while blocked");
+    check(sigprocmask(SIG_SETMASK, &saved, NULL) == 0, "sigprocmask SIG_SETMASK restore");
+    check(sig_seen == SIGUSR2, "handler runs after unblock");
+
     /* assert 宏本身：成功路径不应触发 */
     assert(strlen(buf) == 13);
 
