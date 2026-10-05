@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -28,6 +29,8 @@ _Static_assert(sizeof(struct dirent) == 280, "struct dirent size");
 _Static_assert(offsetof(struct dirent, d_name) == 19, "struct dirent d_name offset");
 _Static_assert(sizeof(struct passwd) == 32, "struct passwd size");
 _Static_assert(offsetof(struct passwd, pw_dir) == 16, "struct passwd pw_dir offset");
+_Static_assert(sizeof(struct stat) == 144, "struct stat size");
+_Static_assert(offsetof(struct stat, st_atim) == 72, "struct stat st_atim offset");
 
 static int failures = 0;
 static volatile int atexit_ran = 0;
@@ -164,6 +167,13 @@ int main(void) {
         check(read(fd, rbuf, sizeof rbuf) > 0, "read from opened file");
         check(close(fd) == 0, "close");
     }
+
+    /* 文件状态（sys/stat.h）：根目录必须是目录；stdin 的 fstat 必须成功 */
+    struct stat st;
+    check(stat("/", &st) == 0, "stat(\"/\")");
+    check(S_ISDIR(st.st_mode), "S_ISDIR(/) ");
+    check(stat("/definitely-absent-xyz.txt", &st) != 0, "stat(missing) fails");
+    check(fstat(0, &st) == 0, "fstat(0)");
 
     /* atexit：登记的处理函数应在 exit 时运行（本函数随后用 exit 返回，故它会打印） */
     check(atexit(on_exit_handler) == 0, "atexit registration");
