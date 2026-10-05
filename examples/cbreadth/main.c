@@ -31,6 +31,8 @@ _Static_assert(sizeof(struct passwd) == 32, "struct passwd size");
 _Static_assert(offsetof(struct passwd, pw_dir) == 16, "struct passwd pw_dir offset");
 _Static_assert(sizeof(struct stat) == 144, "struct stat size");
 _Static_assert(offsetof(struct stat, st_atim) == 72, "struct stat st_atim offset");
+_Static_assert(sizeof(struct sigaction) == 32, "struct sigaction size");
+_Static_assert(offsetof(struct sigaction, sa_restorer) == 24, "struct sigaction sa_restorer offset");
 
 static int failures = 0;
 static volatile int atexit_ran = 0;
@@ -101,6 +103,16 @@ int main(void) {
     check(signal(SIGUSR1, on_signal) != SIG_ERR, "signal");
     check(raise(SIGUSR1) == 0, "raise");
     check(sig_seen == SIGUSR1, "handler saw SIGUSR1");
+
+    /* sigaction：POSIX 推荐的装法（与 signal 同源），用另一个信号以免干扰上面的用例 */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = on_signal;
+    struct sigaction old;
+    check(sigaction(SIGUSR2, &sa, &old) == 0, "sigaction install");
+    sig_seen = 0;
+    check(raise(SIGUSR2) == 0, "raise(SIGUSR2)");
+    check(sig_seen == SIGUSR2, "sigaction handler saw SIGUSR2");
 
     /* assert 宏本身：成功路径不应触发 */
     assert(strlen(buf) == 13);
