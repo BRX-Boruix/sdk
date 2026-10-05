@@ -8,13 +8,26 @@
  */
 #include <assert.h>
 #include <ctype.h>
+#include <dirent.h>
+#include <fcntl.h>
 #include <math.h>
+#include <pwd.h>
 #include <setjmp.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+/* 布局锚定：这几个数字是 C↔Rust 的 ABI 合约（双方都是 repr(C) + 同字段同序）。
+ * 任一例改字段而忘了同步另一例，这里会在**编译期**炸掉，而不是运行期读到错位数据。 */
+_Static_assert(sizeof(struct dirent) == 280, "struct dirent size");
+_Static_assert(offsetof(struct dirent, d_name) == 19, "struct dirent d_name offset");
+_Static_assert(sizeof(struct passwd) == 32, "struct passwd size");
+_Static_assert(offsetof(struct passwd, pw_dir) == 16, "struct passwd pw_dir offset");
 
 static int failures = 0;
 static volatile int atexit_ran = 0;
@@ -88,6 +101,39 @@ int main(void) {
 
     /* assert 宏本身：成功路径不应触发 */
     assert(strlen(buf) == 13);
+
+    /* 目录流（dirent.h）：根目录一定能打开，且至少有一项 */
+    DIR *dir = opendir("/");
+    check(dir != NULL, "opendir(\"/\")");
+    if (dir != NULL) {
+        int n = 0;
+        while (readdir(dir) != NULL && n < 64) {
+            n++;
+        }
+        check(n > 0, "readdir yielded entries");
+        check(closedir(dir) == 0, "closedir");
+    }
+
+    /* 用户数据库（pwd.h）：本系统按 /config/users.json 提供，且是**纯用户态**实现
+     * （ADR-040 §2.9）。该文件不在时**如实返回 NULL + errno**，绝不伪造账户（S09）——
+     * 故这里断言的是**契约**而非环境：文件在则必须查到，不在则必须如实返回 NULL。 */
+    int db_fd = open("/config/users.json", O_RDONLY);
+    struct passwd *pw = getpwuid(0);
+    if (db_fd >= 0) {
+        close(db_fd);
+        check(pw != NULL && pw->pw_name != NULL && pw->pw_name[0] != '\0', "getpwuid(0) with users.json present");
+    } else {
+        check(pw == NULL, "getpwuid(0) honestly NULL when users.json absent");
+    }
+
+    /* fcntl.h + unistd.h：打开数据盘上的已知文件并读几个字节 */
+    int fd = open("/volumes/BORUIX_DATA/welcome.txt", O_RDONLY);
+    check(fd >= 0, "open(welcome.txt)");
+    if (fd >= 0) {
+        char rbuf[8];
+        check(read(fd, rbuf, sizeof rbuf) > 0, "read from opened file");
+        check(close(fd) == 0, "close");
+    }
 
     /* atexit：登记的处理函数应在 exit 时运行（本函数随后用 exit 返回，故它会打印） */
     check(atexit(on_exit_handler) == 0, "atexit registration");
