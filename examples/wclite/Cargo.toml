@@ -1,0 +1,12 @@
+[package]
+name = "wclite"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "3P2-3 端点 A：同一份源码同时构建宿主与 BORUIX 的小型真实项目"
+
+# 平台差异只体现在**依赖**上：宿主用 std，BORUIX 用 boruix_std。
+# 源码文件本身不含任何平台开关以外的差异。
+[target.'cfg(target_os = "boruix")'.dependencies]
+boruix_std = { git = "https://github.com/BRX-Boruix/sdk" }
+libsys = { git = "https://github.com/BRX-Boruix/libsys" }

@@ -32,8 +32,47 @@ pub use boruix_std_macros::main;
 pub use libsys;
 pub use libsys::Error;
 
-/// 进程参数与环境（熟名）。
-pub use libsys::{args, cmdline, env, var};
+/// 进程环境（熟名）。
+pub use libsys::{env, var};
+
+// ---------- 入口参数：由属性宏接住，用户零参数取用 ----------
+//
+// 为什么需要这一层：`#[boruix_std::main]` 生成的 `user_main(argc, argv)` 若把两个参数丢掉，
+// 用户就再也拿不到命令行（3P2-3 端点验收正是这样暴露的）。故入口先把它们存进本 crate 的
+// 静态槽，用户经下面两个零参数访问器取用。
+
+use core::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
+
+static ENTRY_ARGC: AtomicIsize = AtomicIsize::new(0);
+static ENTRY_ARGV: AtomicUsize = AtomicUsize::new(0);
+
+/// 由入口属性宏在调用用户 `main` **之前**写入。不是给用户直接调的。
+pub fn __set_entry_args(argc: isize, argv: *const *const u8) {
+    ENTRY_ARGV.store(argv as usize, Ordering::Release);
+    ENTRY_ARGC.store(argc, Ordering::Release);
+}
+
+/// 整条命令行（**未拆词**；本系统 ABI 把整条命令放 argv[0]，拆词是用户程序职责）。
+///
+/// 无命令行时返回 `None`。
+pub fn cmdline() -> Option<&'static [u8]> {
+    let argc = ENTRY_ARGC.load(Ordering::Acquire);
+    let argv = ENTRY_ARGV.load(Ordering::Acquire) as *const *const u8;
+    if argv.is_null() {
+        return None;
+    }
+    // SAFETY: 指针由入口属性宏写入，指向内核按 ABI 放置的入口参数块；该内存位于进程初始栈，
+    // 生命周期覆盖整个进程（故此处以 'static 表达）。
+    unsafe { libsys::cmdline(argc, argv) }
+}
+
+/// 拆词后的参数迭代器（首个词是程序名/首词）。无命令行时为空迭代器。
+pub fn args() -> libsys::Words<'static> {
+    match cmdline() {
+        Some(line) => libsys::split_words(line),
+        None => libsys::split_words(b""),
+    }
+}
 
 /// 时间：单调时钟与休眠。
 pub use libsys::{now, sleep};

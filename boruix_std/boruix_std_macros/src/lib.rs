@@ -47,7 +47,9 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #func
 
         #[unsafe(no_mangle)]
-        pub extern "C" fn user_main(_argc: isize, _argv: *const *const u8) -> i32 {
+        pub extern "C" fn user_main(argc: isize, argv: *const *const u8) -> i32 {
+            // 先把入口参数交给门面保管：否则用户再也拿不到命令行（见 boruix_std::args）。
+            ::boruix_std::__set_entry_args(argc, argv);
             main();
             0
         }
