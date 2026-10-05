@@ -125,23 +125,27 @@ int main(void) {
 
     /* sigprocmask：**行为**验证（不只是符号存在）——屏蔽期间不投递，解除后才投递。
      * 位图约定按 bit(sig-1)（sigset_t 为 u64，bit63 保留）。 */
-    sigset_t blk = 1UL << (SIGUSR2 - 1);
-    sigset_t saved, before, after;
+    sigset_t blk, saved, before, after;
+    /* 用 POSIX 辅助函数构造信号集——**不要手搓位**：位编码是 `1 << sig`，
+     * 按「bit(sig-1)」的直觉写会把 SIGUSR2 写成 SIGSEGV 的位（本驱动曾因此误判内核有缺口）。 */
+    check(sigemptyset(&blk) == 0 && sigaddset(&blk, SIGUSR2) == 0, "sigemptyset/sigaddset");
+    check(sigismember(&blk, SIGUSR2) == 1, "sigismember(blk, SIGUSR2)");
     sigprocmask(SIG_SETMASK, NULL, &before); /* 查询（set 为 NULL） */
     printf("observe: mask before=0x%lx want_block=0x%lx\n", (unsigned long)before, (unsigned long)blk);
     check(sigprocmask(SIG_BLOCK, &blk, &saved) == 0, "sigprocmask SIG_BLOCK");
     sigprocmask(SIG_SETMASK, NULL, &after);
     printf("observe: mask after =0x%lx\n", (unsigned long)after);
     check((after & blk) == blk, "sigprocmask 位图往返正确");
-    /* **观测（不断言）**：屏蔽期间 raise 是否被投递。
+    /* **行为断言**：屏蔽期间不投递，解除后才投递。
      *
-     * 实测（2026-10-04）：**仍然投递**（处理函数运行）——即内核收下屏蔽位但不检查它。
-     * 这是**内核缺口**（POSIX 要求 blocked 信号转 pending），已立项为 `3P4-11`，不在本阶段范围。
-     * 故这里只把事实打印出来，不写成断言（libc 侧无法修，断言会让本驱动永远红）。 */
+     * 注意上一行的查询（`set == NULL`）必须是**纯查询**：早先 libc 把 NULL 当 0 传给内核，
+     * `SIG_SETMASK` 因此清空了屏蔽集，导致这里的 raise 被投递——我一度误判为内核缺口。
+     * 现 libc 已修（查询走「SIGNAL_BLOCK 传空集」的无副作用路径），故这里恢复为断言。 */
     sig_seen = 0;
     check(raise(SIGUSR2) == 0, "raise(SIGUSR2) while blocked");
-    printf("observe: handler ran while blocked = %d (内核缺口 3P4-11)\n", sig_seen != 0);
+    check(sig_seen == 0, "屏蔽期间处理函数不运行");
     check(sigprocmask(SIG_SETMASK, &saved, NULL) == 0, "sigprocmask SIG_SETMASK restore");
+    check(sig_seen == SIGUSR2, "解除屏蔽后处理函数运行");
     sigprocmask(SIG_SETMASK, NULL, &after);
     check((after & blk) == 0, "sigprocmask 恢复后已清位");
 
