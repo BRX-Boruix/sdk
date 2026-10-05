@@ -117,14 +117,44 @@ int main(void) {
     /* 用户数据库（pwd.h）：本系统按 /config/users.json 提供，且是**纯用户态**实现
      * （ADR-040 §2.9）。该文件不在时**如实返回 NULL + errno**，绝不伪造账户（S09）——
      * 故这里断言的是**契约**而非环境：文件在则必须查到，不在则必须如实返回 NULL。 */
-    int db_fd = open("/config/users.json", O_RDONLY);
-    struct passwd *pw = getpwuid(0);
-    if (db_fd >= 0) {
-        close(db_fd);
-        check(pw != NULL && pw->pw_name != NULL && pw->pw_name[0] != '\0', "getpwuid(0) with users.json present");
-    } else {
-        check(pw == NULL, "getpwuid(0) honestly NULL when users.json absent");
+    /* 先做一个**对照**：不存在的文件必须打不开。若这里返回 >=0，说明 open 本身有问题，
+     * 那么下面「users.json 打开成功」就不能当作「文件存在」的证据。 */
+    int absent_fd = open("/definitely-absent-xyz.txt", O_RDONLY);
+    check(absent_fd < 0, "open(missing file) fails");
+    if (absent_fd >= 0) {
+        close(absent_fd);
     }
+
+    /* 观测（不判分，只为把事实打印出来以便定位）：users.json 是否存在、内容是什么。 */
+    int db_fd = open("/config/users.json", O_RDONLY);
+    printf("observe: open(/config/users.json) -> %d\n", db_fd);
+    if (db_fd >= 0) {
+        char dbuf[121];
+        long got = (long)read(db_fd, dbuf, sizeof dbuf - 1);
+        if (got > 0) {
+            dbuf[got] = '\0';
+            printf("observe: users.json[%ld] = %s\n", got, dbuf);
+        } else {
+            printf("observe: users.json read -> %ld\n", got);
+        }
+        close(db_fd);
+    }
+
+    /* 断言**契约**而非环境假设。
+     *
+     * 实测事实（2026-10-04）：镜像里的账户表是 {"users":[{"name":"alice","uid":1000,"gid":1000}]}——
+     * **没有 uid 0**。故 getpwuid(0) 返回 NULL 是**正确**的（S09：绝不伪造账户）。
+     * 本用例原先假设「uid 0 应能查到」，那是错的假设，不是 libc 缺陷。
+     *
+     * 这里改为断言真正的 API 契约：
+     *   ① 表中存在的账户必须按名/按 uid 查到；
+     *   ② 表中不存在的名字必须如实返回 NULL（不伪造）。 */
+    struct passwd *pw = getpwnam("alice");
+    printf("observe: getpwnam(alice) -> %s\n", pw == NULL ? "NULL" : (pw->pw_name == NULL ? "(name=NULL)" : pw->pw_name));
+    check(pw != NULL && pw->pw_uid == 1000, "getpwnam(alice) -> uid 1000");
+    struct passwd *pw2 = getpwuid(1000);
+    check(pw2 != NULL && pw2->pw_name != NULL && strcmp(pw2->pw_name, "alice") == 0, "getpwuid(1000) -> alice");
+    check(getpwnam("no-such-user") == NULL, "getpwnam(unknown) honestly NULL");
 
     /* fcntl.h + unistd.h：打开数据盘上的已知文件并读几个字节 */
     int fd = open("/volumes/BORUIX_DATA/welcome.txt", O_RDONLY);
