@@ -1,0 +1,12 @@
+[package]
+name = "boruix_std"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "BORUIX 用户态程序的熟名表层：入口属性 + print!/println! + libsys 薄封装（3P2-1）"
+
+[dependencies]
+boruix_std_macros = { path = "../boruix_std_macros" }
+# 经 git 依赖（而非 path）：本仓要能作为**第三方工程的 git 依赖**被拉取，
+# 而 git 依赖内部的 path 依赖不会随仓库一起存在（cargo 只在检出目录内解析 path）。
+libsys = { git = "https://github.com/BRX-Boruix/libsys" }

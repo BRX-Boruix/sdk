@@ -1,0 +1,14 @@
+[package]
+name = "boruix_std_macros"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "BORUIX 用户态程序的入口属性宏（3P2-1）"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
