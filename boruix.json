@@ -20,7 +20,7 @@
   "panic-strategy": "abort",
   "plt-by-default": false,
   "position-independent-executables": false,
-  "relro-level": "full",
+  "relro-level": "off",
   "rustc-abi": "softfloat",
   "stack-probes": {
     "kind": "inline"
