@@ -54,8 +54,10 @@ fn main() {
 #[boruix_std::main]
 fn main() {
     // BORUIX 的 ABI 把整条命令行放在 argv[0] 且**不拆词**（见 docs/abi/syscall-abi.md §4），
-    // 拆词是用户程序的职责——libsys 提供单点实现。这里取第二个词（第一个是程序名/首词）。
-    let text: &[u8] = match boruix_std::args().nth(1) {
+    // 拆词是用户程序的职责——libsys 提供单点实现。**经 shell 派生时该串已剥掉程序名**，
+    // 故首个词就是第一个参数（这与宿主 POSIX argv 的 [0]=程序名不同——差异属平台层，
+    // 收在本分支内）。
+    let text: &[u8] = match boruix_std::args().nth(0) {
         Some(a) => a,
         None => DEFAULT_TEXT,
     };
