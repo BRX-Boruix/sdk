@@ -51,7 +51,8 @@ fn main() {
         die("缺少 sysroot：传 --sysroot <dir> 或设 BORUIX_SYSROOT（由 `python tools/main.py install --prefix <dir>` 产出）");
     };
     let sysroot = PathBuf::from(sysroot);
-    let json = sysroot.join("boruix.json");
+    // 规范三元组名（3P2-4）：RUST_TARGET_PATH 指向 sysroot，cargo/rustc 在那里按名查找。
+    let json = sysroot.join("x86_64-unknown-boruix.json");
     let ld = sysroot.join("lib").join("linker.ld");
     if !json.is_file() || !ld.is_file() {
         die(&format!("sysroot 不完整：缺 {} 或 {}", json.display(), ld.display()));
@@ -65,6 +66,9 @@ fn main() {
 
     // ---- 目标域 rustflags：注入两个 crate 属性 + TLS 模型 + 链接脚本 ----
     let flags = [
+        // rustc 加载**自定义**目标规格要求该旗标（实测报错 "custom targets are unstable and
+        // require -Zunstable-options"）。
+        "-Zunstable-options".to_string(),
         "-Zcrate-attr=no_std".to_string(),
         "-Zcrate-attr=no_main".to_string(),
         "-Ztls-model=local-exec".to_string(),
@@ -82,13 +86,15 @@ fn main() {
     // 自定义目标需要 build-std（自定义目标没有预编译 core/alloc）与 json-target-spec。
     // 参数层次：`-Z` 与 `--config` 是**全局**选项（在子命令前）；`--target` 是**子命令级**
     // 选项（必须在子命令后）——实测放在子命令前会报 `unexpected argument '--target' found`。
-    cmd.args(["-Z", "json-target-spec", "-Z", "build-std=core,alloc"]);
+    // 按名使用自定义目标：RUST_TARGET_PATH 指向 sysroot（按名时不需要 -Zjson-target-spec）。
+    cmd.env("RUST_TARGET_PATH", &sysroot);
+    cmd.args(["-Z", "build-std=core,alloc"]);
     cmd.arg("--config").arg(cfg);
     let Some((sub, tail)) = forwarded.split_first() else {
         die("缺少子命令（例如 `cargo boruix build`）");
     };
     cmd.arg(sub);
-    cmd.arg("--target").arg(&json);
+    cmd.arg("--target").arg(&name);
     cmd.args(tail);
     let status = cmd.status().unwrap_or_else(|e| die(&format!("无法启动 cargo: {}", e)));
     exit(status.code().unwrap_or(1));
