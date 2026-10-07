@@ -1,11 +1,21 @@
 # sdk
 
-BORUIX's third-party development toolchain (planned): cross-compile programs that run on BORUIX without cloning the system source.
+BORUIX's third-party development toolchain: cross-compile programs that run on BORUIX without cloning the system source.
 
 [简体中文](README.md)
 
-**This project is at the planning stage and is not usable yet.** The repository holds only this
-document — no working tools or artifacts.
+**Status: usable (as of 2026-10).** The repository contains `boruix_std/` (the `boruix_std` facade
+crate, `boruix_std_macros`, and the `cargo-boruix` wrapper), `x86_64-unknown-boruix.json` (the target
+definition), and `examples/` (`wclite`, `three-lines`, `cbreadth`).
+
+**Honest boundaries**:
+
+- Upstreaming the target definition (`3P2-4`) is done only to the **local Tier-3** form; landing it in
+  upstream rustc is an external process and is **not done**.
+- Dynamic libraries (`cdylib`) are rejected by cargo, so the `.so` ecosystem (`3P5-2`) is not covered.
+- This README previously said the project was at the planning stage, not usable, with only the
+  document in the repository — **that was stale**: the tools and examples have landed and been
+  accepted; see `3P1-*` / `3P2-*` in `docs/TODO/3p.md`.
 
 ## The problem it addresses
 

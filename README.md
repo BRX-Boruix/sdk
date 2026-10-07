@@ -1,10 +1,19 @@
 # sdk
 
-BORUIX 的第三方开发工具集（规划中）：不克隆系统源码即可交叉编译出能在 BORUIX 上运行的程序。
+BORUIX 的第三方开发工具集：不克隆系统源码即可交叉编译出能在 BORUIX 上运行的程序。
 
 [English](README.en.md)
 
-**本项目处于规划阶段，尚不可用。** 仓库目前只有这份说明文档，没有任何可用的工具或产物。
+**状态：可用（2026-10 起）。** 仓内已有：`boruix_std/`（`boruix_std` 门面 crate +
+`boruix_std_macros` + `cargo-boruix` 包装器）、`x86_64-unknown-boruix.json`（目标定义）、
+`examples/`（`wclite`、`three-lines`、`cbreadth`）。
+
+**诚实边界**：
+
+- 目标定义的上游化（`3P2-4`）只做到**本地 Tier-3 形态**；进入上游 rustc 是外部流程，**未完成**。
+- 动态库（`cdylib`）不被 cargo 接受，故 `.so` 生态（`3P5-2`）不在此列。
+- 此前本 README 写「处于规划阶段、尚不可用、仓库只有这份说明文档」——**那是过期的**：工具与示例
+  均已落地并验收，见 `docs/TODO/3p.md` 的 `3P1-*` / `3P2-*` 各项。
 
 ## 它要解决什么问题
 
